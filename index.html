@@ -950,8 +950,10 @@
         const TUTOR_H = 668842604;
         // Timings (seconds)
         const COOLDOWN = 5;      // [10.3.3] wait after a wrong attempt
-        const READ_MIN = 20;     // [10.3.2] minimum time on a briefing before "Start the job"
-        const REVEAL_READ = 6;   // [10.3.3] time to read the answer after the final wrong attempt
+        const READ_MIN = 45;     // [10.3.2] minimum time on a briefing before "Start the job" (about 80 words, read slowly)
+        const REVEAL_READ = 15;  // [10.3.3] time to read the answer after the final wrong attempt
+        const RUSH = 8;          // [10.3.3] a wrong answer given this soon after a task opens counts as a rushed guess...
+        const RUSH_COOLDOWN = 15;// ...and waits this long instead of COOLDOWN
         const REREAD_COST = 10;  // [10.3.2] XP cost of re-reading a briefing (Paul's decision)
         const RECOG = ['mc', 'sort', 'match', 'order', 'spot'], RECALL = ['text', 'keywords'];
         const maxAttempts = (t) => (RECALL.includes(t.type) ? 3 : 2);
@@ -1340,6 +1342,7 @@
             else if (code !== null) fb(el, 'no', 'That code isn’t right. Ask your tutor.');
           };
           const chk = el.querySelector('.chk');
+          el.dataset.ready = String(Math.max(Date.now(), st.cool[k] || 0));
           chk.onclick = () => check(zi, ti, el);
           // [10.3.3] a cooldown survives a refresh
           if ((st.cool[k] || 0) > Date.now()) startCooldown(zi, ti, el);
@@ -1452,11 +1455,12 @@
             save();
             return renderZone(zi);
           }
-          st.cool[k] = NQ.cooldownUntil(COOLDOWN);
+          const rushed = Date.now() - (+el.dataset.ready || 0) < RUSH * 1000;
+          st.cool[k] = NQ.cooldownUntil(rushed ? RUSH_COOLDOWN : COOLDOWN);
           save();
           // re-render so the options shuffle again, then show the hint
           renderTask(zi, ti);
-          fb(el, 'no', (r.msg || '') + `Not quite. ${t.hint ? 'Hint: ' + esc(t.hint) + ' ' : ''}You have ${maxAttempts(t) - attemptNo} ${maxAttempts(t) - attemptNo === 1 ? 'try' : 'tries'} left${maxAttempts(t) - attemptNo === 1 ? ' for half XP' : ''}.`);
+          fb(el, 'no', (rushed ? `That was very quick, so you wait ${RUSH_COOLDOWN} s. Read the question properly. ` : '') + (r.msg || '') + `Not quite. ${t.hint ? 'Hint: ' + esc(t.hint) + ' ' : ''}You have ${maxAttempts(t) - attemptNo} ${maxAttempts(t) - attemptNo === 1 ? 'try' : 'tries'} left${maxAttempts(t) - attemptNo === 1 ? ' for half XP' : ''}.`);
         }
 
         // [10.3.3] After the final wrong attempt: show the answer and explanation, no XP.

@@ -130,6 +130,8 @@
       .code { margin: 14px 0 4px; font-size: 18px; }
       .code b { font-family: var(--mono); font-size: 28px; color: var(--amber); letter-spacing: 1px; margin-left: 8px; }
       .tutor { width: min(900px, 96vw); }
+      .lbStatus { font-size: 17px; margin: 4px 0 0; min-height: 1.3em; }
+      .lbStatus .btn { margin-left: 8px; }
       #inCheck { width: 300px; font-family: var(--mono); text-transform: uppercase; margin-top: 0; }
       .keyTable { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 8px; }
       .keyTable td, .keyTable th { border-bottom: 1px solid #34407a; padding: 4px 6px; text-align: left; vertical-align: top; }
@@ -277,6 +279,7 @@
           </div>
         </div>
         <div class="code">Score code <b id="scoreCode">WS-AAA-0-XXXX</b></div>
+        <p class="lbStatus" id="lbStatus" role="status"></p>
         <div class="row">
           <button class="btn primary" id="btnAgain" type="button">Play again</button>
           <a href="index.html" class="btn">Back to Cloud Quest</a>
@@ -303,6 +306,7 @@
             <button class="btn" id="btnSkip" type="button">Skip to the boss</button>
             <button class="btn" id="btnReset" type="button">Reset this PC</button>
             <button class="btn" id="btnKey" type="button">Show answer key</button>
+            <a class="btn" id="btnBoard" href="leaderboard.html" target="_blank" rel="noopener">Open live leaderboard</a>
           </div>
           <p class="small" id="tMsg" role="status"></p>
           <div id="keyOut"></div>
@@ -509,6 +513,7 @@ const W = 1280, H = 720, T = 40;          // logical canvas size and tile size
 const COLS = 32, ROWS = 18;
 const SAVE_KEY = 'nimbus_winter_2026_v1'; // never touch cloudquest_s9_v1
 const TUTOR_HASH = 3475731157;        // djb2 of the tutor code (set by build.js)
+const LB_URL = '';              // live leaderboard web app address ('' = switched off; set by build.js)
 const LOCK_SECONDS = 15;
 const NEEDED_PER_SERVER = 3;
 const BOSS_TERMINALS = 3;
@@ -1777,6 +1782,29 @@ function winRun() {
   saveNow();
   sfx('win');
   showEnd(RUN.result);
+  sendToLeaderboard();
+}
+
+// Live leaderboard: sends only the score code (initials + score + check) and the time taken.
+function sendToLeaderboard() {
+  const el = $('#lbStatus');
+  if (!LB_URL || !RUN || !RUN.result) { el.textContent = ''; return; }
+  if (RUN.tutorSkip) { el.textContent = 'Tutor test run: not sent to the leaderboard.'; return; }
+  el.textContent = 'Sending your score to the class leaderboard\u2026';
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  if (ctl) setTimeout(() => ctl.abort(), 9000);
+  const url = LB_URL + '?action=submit&code=' + encodeURIComponent(RUN.result.code) + '&t=' + Math.round(RUN.result.elapsed);
+  fetch(url, ctl ? { signal: ctl.signal } : {})
+    .then((r) => r.json())
+    .then((j) => {
+      if (j && j.ok) el.innerHTML = '\u2713 On the class leaderboard' + (j.rank ? ' (you\u2019re <b>#' + j.rank + '</b> right now)' : '') + '.';
+      else el.innerHTML = 'The leaderboard didn\u2019t accept this score. Read your score code out instead.';
+    })
+    .catch(() => {
+      el.innerHTML = 'Couldn\u2019t reach the leaderboard. Read your score code out instead. <button class="btn small" id="btnLbRetry" type="button">Try again</button>';
+      const b = document.getElementById('btnLbRetry');
+      if (b) b.onclick = sendToLeaderboard;
+    });
 }
 
 function tutorSkipToBoss() {

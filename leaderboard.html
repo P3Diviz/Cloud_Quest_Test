@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Winter Shift · Class leaderboard</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <style>
+      :root { --navy: #1b2340; --deep: #0f1426; --teal: #12939a; --amber: #f2a93b; --white: #f6f8fb; --muted: #aab3cc; --red: #e5484d;
+        --head: 'Bricolage Grotesque', 'Segoe UI', system-ui, Arial, sans-serif; --body: 'Atkinson Hyperlegible', Calibri, 'Segoe UI', Arial, sans-serif; --mono: 'JetBrains Mono', Consolas, monospace; color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html { background: var(--deep); }
+      body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #26306a 0%, var(--deep) 70%) no-repeat; background-color: var(--deep); color: var(--white); font-family: var(--body); }
+      .btns { display: flex; gap: 10px; }
+      main { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+      header { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+      h1 { font-family: var(--head); font-size: clamp(36px, 5vw, 64px); margin: 0; font-weight: 800; }
+      .kicker { color: var(--amber); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 4px; }
+      .sp { flex: 1; }
+      .meta { color: var(--muted); font-size: 18px; margin: 6px 0 18px; }
+      table { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-size: clamp(22px, 2.6vw, 34px); }
+      td { background: var(--navy); padding: 10px 18px; }
+      td:first-child { border-radius: 12px 0 0 12px; width: 90px; text-align: center; font-family: var(--head); font-weight: 800; color: var(--amber); }
+      td:last-child { border-radius: 0 12px 12px 0; text-align: right; color: var(--muted); font-size: 0.7em; width: 140px; }
+      td.ini { font-family: var(--mono); letter-spacing: 4px; }
+      td.sc { text-align: right; font-family: var(--head); font-weight: 800; width: 200px; }
+      tr.top1 td { background: #3a3216; } tr.top2 td { background: #2c3140; } tr.top3 td { background: #33261c; }
+      .empty { font-size: 26px; color: var(--muted); text-align: center; padding: 40px 0; }
+      .status { font-size: 16px; color: var(--muted); margin-top: 14px; }
+      .status.bad { color: #ff9b9e; }
+      .btn { font: inherit; font-weight: 700; min-height: 42px; padding: 8px 16px; border-radius: 10px; border: 2px solid #46528a; background: var(--navy); color: var(--white); cursor: pointer; }
+      .btn:hover { border-color: var(--teal); }
+      :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><p class="kicker">Nimbus IT · Christmas Eve</p><h1>❄ Winter Shift leaderboard</h1></div>
+        <div class="sp"></div>
+        <div class="btns"><button class="btn" id="full" type="button">Full screen</button>
+        <button class="btn" id="reset" type="button">New session (tutor)</button></div>
+      </header>
+      <p class="meta" id="meta">Connecting…</p>
+      <table id="board" aria-live="polite"></table>
+      <p class="status" id="status"></p>
+    </main>
+    <script>
+      (function () {
+        'use strict';
+        var URL_ = '';
+        var $ = function (s) { return document.querySelector(s); };
+        var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+        var fmt = function (s) { s = Math.round(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+        var medal = ['🥇', '🥈', '🥉'];
+        function get(params) {
+          var q = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+          var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          if (ctl) setTimeout(function () { ctl.abort(); }, 9000);
+          return fetch(URL_ + '?' + q, ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.json(); });
+        }
+        function show(d) {
+          var started = new Date(d.session);
+          $('#meta').textContent = d.players + ' player' + (d.players === 1 ? '' : 's') + ' · session started ' + started.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' on ' + started.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+          $('#board').innerHTML = d.top.length
+            ? d.top.map(function (r, i) { return '<tr class="top' + (i + 1) + '"><td>' + (medal[i] || i + 1) + '</td><td class="ini">' + esc(r.initials) + '</td><td class="sc">' + r.score + '</td><td>' + fmt(r.secs) + '</td></tr>'; }).join('')
+            : '<tr><td class="empty" colspan="4" style="background:none">No scores yet. Finish a run to get on the board!</td></tr>';
+        }
+        function refresh() {
+          if (!URL_) { $('#meta').textContent = 'The live leaderboard is not switched on yet.'; return; }
+          get({ action: 'board' }).then(function (d) {
+            if (!d || !d.ok) throw new Error('bad');
+            show(d);
+            $('#status').className = 'status';
+            $('#status').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB') + '. Refreshes every 10 seconds.';
+          }).catch(function () {
+            $('#status').className = 'status bad';
+            $('#status').textContent = 'Can’t reach the leaderboard right now. Still trying every 10 seconds; learners can read their score codes out meanwhile.';
+          });
+        }
+        $('#reset').onclick = function () {
+          var code = prompt('Tutor code to start a new session (the board will be cleared; old scores stay in your Google Sheet):');
+          if (code === null) return;
+          get({ action: 'newsession', code: code.trim() }).then(function (d) {
+            if (d && d.ok) { refresh(); } else alert('That code isn’t right.');
+          }).catch(function () { alert('Can’t reach the leaderboard right now.'); });
+        };
+        $('#full').onclick = function () { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); };
+        refresh();
+        setInterval(refresh, 10000);
+      })();
+    </script>
+  </body>
+</html>

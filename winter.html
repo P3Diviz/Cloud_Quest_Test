@@ -194,7 +194,7 @@
               <li><kbd>1</kbd>–<kbd>4</kbd> or click to answer</li>
               <li><kbd>P</kbd> or <kbd>Esc</kbd> pause</li>
             </ul>
-            <p class="small">Each server needs <b>3 correct answers</b>. A wrong answer locks it for 15 seconds and releases a virus.</p>
+            <p class="small">Each server needs <b>3 correct answers</b>, one at a time: after each answer, go to a <b>different server</b> before coming back. A wrong answer locks the server for 15 seconds and releases a virus. Presents with a <b>red glow</b> are Trojans: keep away.</p>
             <h2>Settings</h2>
             <div class="toggles" data-toggles></div>
           </div>
@@ -535,7 +535,7 @@ const SERVER_DEFS = [
 
 const VIRUS_GUIDE = [
   ['Worm', 'Copies itself without help. Bounces off walls and splits in two every 45 seconds.'],
-  ['Trojan', 'Looks like something nice (a present). Wakes up and chases you when you get close.'],
+  ['Trojan', 'Disguised as a present, but look closer: a red glow and red eyes under the lid. If you get close it shakes, then chases you for a moment. Keep your distance.'],
   ['Spyware', 'Follows you quietly and steals XP while it is near you.'],
   ['Virus', 'Attaches to files and spreads. Patrols a fixed route.'],
 ];
@@ -989,7 +989,7 @@ function padlock(ctx, x, y, s, col) {
   ctx.fillStyle = '#1B2340'; ctx.fillRect(x - 1.5, y + s * 0.05, 3, s * 0.35);
 }
 
-function drawServer(ctx, s, st, t, reduce, near) {
+function drawServer(ctx, s, st, t, reduce, near, wait) {
   const x = s.tx * T, y = s.ty * T, w = 2 * T, h = T;
   const fixed = st.fixed, locked = st.lock > 0;
   const glowCol = fixed ? 'rgba(47,191,113,' : 'rgba(229,72,77,';
@@ -1020,6 +1020,11 @@ function drawServer(ctx, s, st, t, reduce, near) {
     ctx.fillStyle = 'rgba(11,15,32,0.85)'; rr(ctx, x + w / 2 - 26, y + h / 2 - 15, 52, 30, 8); ctx.fill();
     ctx.fillStyle = '#F2A93B'; ctx.font = '800 20px ' + FONT_HEAD;
     ctx.fillText(Math.ceil(st.lock) + 's', x + w / 2, y + h / 2 + 7);
+  }
+  if (wait && !locked && !fixed) {
+    ctx.fillStyle = 'rgba(11,15,32,0.85)'; rr(ctx, x + w / 2 - 30, y + h / 2 - 13, 60, 26, 8); ctx.fill();
+    ctx.fillStyle = '#9FD8FF'; ctx.font = '800 15px ' + FONT_HEAD;
+    ctx.fillText('\u21bb later', x + w / 2, y + h / 2 + 5);
   }
   if (near && !fixed) {
     ctx.strokeStyle = '#F6F8FB'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
@@ -1076,15 +1081,31 @@ function drawVirus(ctx, v, t, reduce, player) {
     }
     eyes(ctx, x + Math.cos(ang) * 3, y + Math.sin(ang) * 3, ang, '#1B2340');
   } else if (v.type === 'trojan') {
-    const awake = v.chase > 0;
-    const sh = awake && !reduce ? Math.sin(t * 40) * 1.5 : 0;
+    const awake = v.chase > 0, warning = v.warn > 0;
+    const sh = (awake || warning) && !reduce ? Math.sin(t * 40) * (warning ? 2.5 : 1.5) : 0;
+    // Tell-tale signs it is not a real present: a pulsing red glow ring
+    const pr = reduce ? 0.5 : 0.35 + 0.25 * Math.sin(t * 4 + x);
+    const g2 = ctx.createRadialGradient(x, y, 8, x, y, 30);
+    g2.addColorStop(0, 'rgba(229,72,77,' + pr + ')'); g2.addColorStop(1, 'rgba(229,72,77,0)');
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(229,72,77,' + (pr + 0.3) + ')'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(x, y, 21, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.save(); ctx.translate(x + sh, y);
     ctx.fillStyle = '#C0392B'; rr(ctx, -13, -10, 26, 22, 3); ctx.fill();
     ctx.fillStyle = '#F2C94C'; ctx.fillRect(-2.5, -10, 5, 22); ctx.fillRect(-13, -1, 26, 5);
     ctx.fillStyle = '#A82E22'; ctx.save(); ctx.rotate(awake ? -0.3 : 0); rr(ctx, -15, -16, 30, 8, 2); ctx.fill(); ctx.restore();
     ctx.fillStyle = '#F2C94C'; ctx.beginPath(); ctx.ellipse(-5, -18, 5, 3, -0.5, 0, 7); ctx.ellipse(5, -18, 5, 3, 0.5, 0, 7); ctx.fill();
     if (awake) { eyes(ctx, 0, 4, Math.atan2(player.y - y, player.x - x), '#1B2340', true); }
+    else {
+      // red eyes peeking out from under the lid
+      ctx.fillStyle = '#1B0B0B'; ctx.fillRect(-11, -9, 22, 4);
+      ctx.fillStyle = '#FF4D4D'; ctx.beginPath(); ctx.arc(-5, -7, 1.8, 0, 7); ctx.arc(5, -7, 1.8, 0, 7); ctx.fill();
+    }
     ctx.restore();
+    if (warning) {
+      ctx.fillStyle = '#E5484D'; rr(ctx, x - 9, y - 46, 18, 20, 5); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 16px ' + FONT_HEAD; ctx.textAlign = 'center'; ctx.fillText('!', x, y - 30); ctx.textAlign = 'left';
+    }
   } else if (v.type === 'spyware') {
     if (v.stealing) { ctx.strokeStyle = 'rgba(178,120,255,0.5)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(player.x, player.y); ctx.stroke(); ctx.setLineDash([]); }
     ctx.fillStyle = '#4B2E83'; ctx.beginPath(); ctx.arc(x, y, 13, 0, 7); ctx.fill();
@@ -1182,7 +1203,7 @@ function drawFloaters(ctx, list) {
 /* ---------- 05 entities: player and viruses ---------- */
 const PLAYER_SPEED = 175, PLAYER_HALF = 12, VIRUS_HALF = 12;
 const VIRUS_CAP = 14;
-const BASE_SPEED = { worm: 85, virus: 75, trojan: 135, spyware: 52 };
+const BASE_SPEED = { worm: 85, virus: 75, trojan: 90, spyware: 52 };
 
 function fixedCount() { return RUN ? RUN.servers.filter((s) => s.fixed).length : 0; }
 function speedMul() { return (SAVE.settings.slow ? 0.6 : 1) * (1 + 0.06 * fixedCount()); }
@@ -1279,13 +1300,17 @@ function updateViruses(dt, map, p) {
       if (d < sp + 1) { v.x = tx; v.y = ty; v.wp = (v.wp + 1) % v.route.length; }
       else { v.vx = (tx - v.x) / d; v.vy = (ty - v.y) / d; moveBody(map, v, v.vx * sp, v.vy * sp, VIRUS_HALF); }
     } else if (v.type === 'trojan') {
-      if (v.chase > 0) {
+      // Warns (shakes with a "!") before a short, slow chase, then rests.
+      if (v.warn > 0) {
+        v.warn -= dt;
+        if (v.warn <= 0) { v.chase = 1.8; floater(v.x, v.y - 24, 'It was a Trojan!', '#F2C94C'); }
+      } else if (v.chase > 0) {
         v.chase -= dt;
         const sp = BASE_SPEED.trojan * mul * dt;
         moveBody(map, v, ((p.x - v.x) / (dist || 1)) * sp, ((p.y - v.y) / (dist || 1)) * sp, VIRUS_HALF);
-        if (v.chase <= 0) v.rest = 4;
+        if (v.chase <= 0) v.rest = 5;
       } else if (v.rest > 0) v.rest -= dt;
-      else if (dist < 115 && GAME.lockout <= 0) { v.chase = 2.6; floater(v.x, v.y - 24, 'It was a Trojan!', '#F2C94C'); }
+      else if (dist < 100 && GAME.lockout <= 0) v.warn = 0.8;
     } else if (v.type === 'spyware') {
       if (dist > 60) {
         const sp = BASE_SPEED.spyware * mul * dt;
@@ -1301,14 +1326,14 @@ function updateViruses(dt, map, p) {
         }
       }
     }
-    if (dist < 25) hitPlayer(v.type);
+    if (dist < 25 && hitPlayer(v.type) && v.type === 'trojan') { v.chase = 0; v.warn = 0; v.rest = 5; }
   }
   GAME.viruses.push(...born);
 }
 
 function hitPlayer(what) {
   const p = GAME.player;
-  if (p.invuln > 0 || GAME.lockout > 0) return;
+  if (p.invuln > 0 || GAME.lockout > 0) return false;
   RUN.shields -= 1; RUN.hits += 1;
   RUN.xp = Math.max(0, RUN.xp - 25);
   p.invuln = 2;
@@ -1322,6 +1347,7 @@ function hitPlayer(what) {
     toast('<b>Locked out!</b> No shields left. Wait 10 seconds while IT resets your account.');
   }
   updateHUD();
+  return true;
 }
 
 function floater(x, y, text, col) { GAME.floaters.push({ x, y, text, col, life: 1.6 }); }
@@ -1672,6 +1698,12 @@ function recordAnswer(sec, correct) {
   updateHUD();
 }
 
+// A server can't take two answers in a row: answer at a different server first
+// (unless every other server is already fixed).
+function mustMoveOn(i) {
+  return RUN.lastServer === i && RUN.servers.some((s, j) => j !== i && !s.fixed);
+}
+
 function askServer(i) {
   const def = SERVER_DEFS[i], st = RUN.servers[i];
   const q = NQ.pickQuestion(BANK.questions, RUN.pick, (x) => x.section === def.sec);
@@ -1680,6 +1712,7 @@ function askServer(i) {
   openPanel({
     where: 'Server ' + def.n + ' · ' + def.room, sec: def.sec, pips: st.p, q,
     onAnswer(correct) {
+      RUN.lastServer = i;
       recordAnswer(def.sec, correct);
       if (correct) { st.p++; if (st.p >= NEEDED_PER_SERVER) st.fixed = true; }
       else st.lock = LOCK_SECONDS;
@@ -1846,6 +1879,7 @@ function interact() {
     const st = RUN.servers[n.i];
     if (st.fixed) toast('Server ' + (n.i + 1) + ' is already fixed. ✓');
     else if (st.lock > 0) toast('Server ' + (n.i + 1) + ' is locked for <b>' + Math.ceil(st.lock) + ' s</b>. Dodge the viruses until it unlocks.');
+    else if (mustMoveOn(n.i)) toast('Answer a question at a <b>different server</b> first, then come back to Server ' + (n.i + 1) + '.');
     else askServer(n.i);
   } else if (n.kind === 'door') {
     if (GAME.map.door.open) openBossIntro();
@@ -1866,6 +1900,7 @@ function updatePrompt() {
     const d = SERVER_DEFS[n.i], st = RUN.servers[n.i];
     t = st.fixed ? 'Server ' + d.n + ' is fixed ✓'
       : st.lock > 0 ? 'Server ' + d.n + ' locked: ' + Math.ceil(st.lock) + ' s'
+      : mustMoveOn(n.i) ? 'Server ' + d.n + ': answer at a different server first (' + st.p + '/3)'
       : 'Press E to fix Server ' + d.n + ' · ' + d.sec + ' ' + SECTIONS[d.sec].name + ' (' + st.p + '/3)';
   } else if (n && n.kind === 'door') {
     t = GAME.map.door.open ? 'Press E to enter the server room' : 'Server room locked (' + fixedCount() + '/6 servers fixed)';
@@ -1916,7 +1951,7 @@ function render() {
     drawSnow(ctx, g.snow, g.mode === 'play' ? 1 / 60 : 0, g.t, reduce);
     drawFairyLights(ctx, g.t, reduce);
     drawTreeLights(ctx, g.t, reduce);
-    for (const s of g.map.servers) drawServer(ctx, s, RUN.servers[s.i], g.t, reduce, g.near && g.near.kind === 'server' && g.near.i === s.i);
+    for (const s of g.map.servers) drawServer(ctx, s, RUN.servers[s.i], g.t, reduce, g.near && g.near.kind === 'server' && g.near.i === s.i, mustMoveOn(s.i));
     drawDoor(ctx, g.map.door, g.map.door.open, g.t, reduce);
     for (const v of g.viruses) drawVirus(ctx, v, g.t, reduce, g.player);
   } else {
